@@ -34,7 +34,7 @@ function formatCurrency(currency = '') {
 function formatPrice(price) {
   if (!price || !Number.isFinite(price.value)) return '—';
   const value = price.value >= 100 ? Math.round(price.value) : price.value >= 10 ? price.value.toFixed(1) : price.value.toFixed(2);
-  return `${value.replace(/\.00$/, '').replace(/\.0$/, '')} ${formatCurrency(price.currency)}`;
+  return `${String(value).replace(/\.00$/, '').replace(/\.0$/, '')} ${formatCurrency(price.currency)}`;
 }
 
 function trendValue(price) {
