@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Path of Exile 2のボス参加費・注目ドロップ・ドロップ確率をコンパクトに比較。">
+  <meta property="og:title" content="PoE2 Boss Market — ボスファーム簡易比較">
+  <meta property="og:description" content="ボス周回コストとドロップを、ひと目で。">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="__PUBLIC_ORIGIN__/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="PoE2 Boss Market — ボスファーム簡易比較">
+  <meta name="twitter:description" content="ボス周回コストとドロップを、ひと目で。">
+  <meta name="twitter:image" content="__PUBLIC_ORIGIN__/og.png">
+  <title>PoE2 Boss Market — ボスファーム簡易比較</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/" aria-label="PoE2 Boss Market ホーム">
+        <span class="brand-mark" aria-hidden="true">⚔</span>
+        <span><strong>PoE2 Boss Market</strong><small>Runes of Aldur · 0.5.x</small></span>
+      </a>
+      <div id="market-status" class="sync-status" aria-live="polite"><i></i><span>市場データを取得中…</span></div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="intro">
+      <div>
+        <p class="eyebrow">◆ ENCOUNTER INTELLIGENCE</p>
+        <h1>ボス周回コストとドロップを、<br class="mobile-break">ひと目で。</h1>
+        <p class="lede">参加費・注目ドロップ・既知の確率を集約。期待値やおすすめ度は計算しません。</p>
+      </div>
+      <div class="toolbar" aria-label="比較条件">
+        <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="ボス・アイテムを検索" aria-label="ボス・アイテムを検索"></label>
+        <select id="mechanic" class="filter" aria-label="メカニクスで絞り込み"><option value="all">すべてのメカニクス</option></select>
+        <select id="tier" class="filter" aria-label="遭遇区分で絞り込み"><option value="all">すべての遭遇</option><option value="primary">主要ボス</option><option value="secondary">依存・副次遭遇</option></select>
+      </div>
+    </section>
+
+    <div class="summary">
+      <span><strong id="result-count">14</strong> encounters</span>
+      <div class="summary-controls">
+        <label class="unknown-toggle"><input id="show-unknown" type="checkbox" checked><span>価格不明も表示</span></label>
+        <label><span class="sr-only">並び順</span><select id="sort" class="sort-select"><option value="drop">最高ドロップ価格順</option><option value="access">参加費順</option><option value="name">名前順</option></select></label>
+      </div>
+    </div>
+    <section id="encounters" class="card-grid" aria-label="ボス比較一覧"></section>
+    <div id="empty-state" class="empty-state" hidden><strong>該当する遭遇がありません</strong><span>検索語か絞り込み条件を変更してください。</span></div>
+    <p class="preview-note">価格: poe.ninja · ドロップ情報: 0.5.x / poe2wiki · EV・利益・おすすめ度は算出しません。</p>
+  </main>
+  <dialog id="detail-dialog" class="detail-dialog" aria-labelledby="detail-title"><div id="detail-content"></div></dialog>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
