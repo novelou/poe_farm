@@ -30,7 +30,9 @@ createServer(async (request, response) => {
     const file = info.isDirectory() ? join(target, 'index.html') : target;
     response.writeHead(200, { 'Content-Type': types[extname(file)] || 'application/octet-stream', 'Cache-Control':'no-cache' });
     const body = await readFile(file);
-    response.end(extname(file) === '.html' ? body.toString('utf8').replaceAll('__PUBLIC_ORIGIN__', publicOrigin) : body);
+    response.end(extname(file) === '.html' ? body.toString('utf8')
+      .replaceAll('__PUBLIC_ORIGIN__', publicOrigin)
+      .replaceAll('__MARKET_ENDPOINT__', '/api/market') : body);
   } catch {
     response.writeHead(404, { 'Content-Type':'text/plain; charset=utf-8' });
     response.end('Not found');

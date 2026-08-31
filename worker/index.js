@@ -119,7 +119,9 @@ export default {
     const response = await env.ASSETS.fetch(request);
     if ((response.headers.get('content-type') || '').includes('text/html')) {
       const headers = new Headers(response.headers);
-      return new Response((await response.text()).replaceAll('__PUBLIC_ORIGIN__', url.origin), { status: response.status, headers });
+      return new Response((await response.text())
+        .replaceAll('__PUBLIC_ORIGIN__', url.origin)
+        .replaceAll('__MARKET_ENDPOINT__', '/api/market'), { status: response.status, headers });
     }
     return response;
   },

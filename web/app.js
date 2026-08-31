@@ -175,7 +175,8 @@ function setStatus(market) {
 
 async function loadMarket() {
   try {
-    const response = await fetch('/api/market', { headers: { Accept:'application/json' } });
+    const marketEndpoint = document.querySelector('meta[name="market-endpoint"]')?.content || '/api/market';
+    const response = await fetch(marketEndpoint, { headers: { Accept:'application/json' } });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     state.market = await response.json();
   } catch {
