@@ -22,6 +22,10 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>"]/g, character => 
 const normalize = value => aliases.get(String(value || '').trim().toLowerCase()) || String(value || '').trim().toLowerCase();
 const priceIndex = () => new Map((state.market?.items || []).filter(item => !item.ambiguous).map(item => [normalize(item.itemName), item]));
 const getPrice = (name, index = priceIndex()) => index.get(normalize(name)) || null;
+const bossName = encounter => encounter.nameJa || encounter.name;
+const itemName = item => item.nameJa || item.itemName;
+const englishName = item => item.nameJa && item.nameJa !== item.itemName ? item.itemName : '';
+const kindLabels = { unique:'ユニーク', currency:'カレンシー', fragment:'フラグメント', lineage:'リネージュサポート', augment:'特殊カレンシー', other:'その他', relic:'レリック' };
 
 function formatCurrency(currency = '') {
   const value = typeof currency === 'object' ? currency.name || currency.id : currency;
@@ -51,12 +55,22 @@ function trendMarkup(price) {
   return `<span class="trend ${rising ? 'up' : 'down'}">${rising ? '↗' : '↘'} ${Math.abs(value).toFixed(1)}%</span>`;
 }
 
-function probabilityMarkup(probability) {
+function probabilityMarkup(probability, showSource = false) {
   if (!probability || probability.type === 'unknown') return '<span class="probability unknown">不明</span>';
-  if (probability.type === 'guaranteed') return '<span class="probability guaranteed">確定</span>';
-  if (probability.type === 'range') return `<span class="probability">${probability.min}–${probability.max}%</span>`;
-  const prefix = probability.approximate ? '約' : '';
-  return `<span class="probability">${prefix}${probability.value}%</span>`;
+  let label = probability.type === 'guaranteed' ? '確定' : probability.type === 'range' ? `${probability.min}–${probability.max}%` : `${probability.approximate ? '約' : ''}${probability.value}%`;
+  const source = showSource && probability.source?.url
+    ? `<small class="prob-source">source: <a href="${escapeHtml(probability.source.url)}" target="_blank" rel="noreferrer">${escapeHtml(probability.source.label || '検証')}</a></small>` : '';
+  return `<span class="probability ${probability.type === 'guaranteed' ? 'guaranteed' : ''}">${label}${source}</span>`;
+}
+
+function itemNameMarkup(item, { link = false } = {}) {
+  const primary = escapeHtml(itemName(item));
+  const label = link && item.poedbUrl ? `<a href="${escapeHtml(item.poedbUrl)}" target="_blank" rel="noreferrer">${primary}</a>` : primary;
+  return `${label}${englishName(item) ? `<small class="english-name">${escapeHtml(englishName(item))}</small>` : ''}`;
+}
+
+function isOverOneDiv(price) {
+  return Boolean(price && formatCurrency(price.currency) === 'div' && price.value >= 1);
 }
 
 function requiredAccess(encounter) {
@@ -80,9 +94,19 @@ function topDropValue(encounter, index = priceIndex()) {
 function accessSummary(encounter, index) {
   const items = encounter.access.items || [];
   if (!items.length) return '進行条件';
-  if (items.length === 1) return `${items[0].itemName}${items[0].quantity > 1 ? ` ×${items[0].quantity}` : ''}`;
+  if (items.length === 1) return `${itemName(items[0])}${items[0].quantity > 1 ? ` ×${items[0].quantity}` : ''}`;
   if (encounter.access.mode === 'multi-item') return `${items.filter(item => !item.optional).length}コンポーネント`;
-  return items.map(item => item.itemName).join(' + ');
+  return items.map(item => itemName(item)).join(' + ');
+}
+
+function premiumMarkup(drops) {
+  if (!drops.length) return '';
+  return `<section class="premium-panel"><div class="reward-section-head"><span>1 DIV+ 現在価格</span><small>${drops.length}件</small></div><div class="premium-scroll">${drops.map(drop => `<div class="premium-row"><span>${itemNameMarkup(drop)}</span><strong>${formatPrice(drop.price)}</strong></div>`).join('')}</div></section>`;
+}
+
+function jackpotMarkup(drops) {
+  if (!drops.length) return '';
+  return `<section class="jackpot-panel"><div class="reward-section-head"><span>あたりユニーク</span><small>良ロール時</small></div>${drops.map(drop => `<div class="jackpot-row"><span><b>${itemNameMarkup(drop)}</b><small>${escapeHtml(drop.jackpotNote || '可変値や特殊ロールによって高額になる可能性があります。')}</small></span><i>◆</i></div>`).join('')}</section>`;
 }
 
 function cardMarkup(encounter, index) {
@@ -93,13 +117,17 @@ function cardMarkup(encounter, index) {
     .filter(drop => state.showUnknown || drop.price)
     .sort((a, b) => (b.price?.value ?? -1) - (a.price?.value ?? -1))
     .slice(0, 3);
+  const pricedDrops = encounter.drops.map(drop => ({ ...drop, price: getPrice(drop.itemName, index) }));
+  const premiumDrops = pricedDrops.filter(drop => isOverOneDiv(drop.price)).sort((a, b) => b.price.value - a.price.value);
+  const jackpotDrops = encounter.drops.filter(drop => drop.jackpot);
   const accessPrice = total ? formatPrice(total) : requiredAccess(encounter).length ? '—' : '進行条件';
   const accessHint = total ? '合計参加費' : requiredAccess(encounter).length ? '市場価格なし' : 'トレード不可';
   return `<article class="encounter-card" data-id="${encounter.id}">
-    <header class="card-head"><div><div class="meta"><span class="mechanic ${meta.tone}">${escapeHtml(meta.label)}</span><span class="tier-pill">${encounter.tier === 'primary' ? '主要' : '依存'}</span><span class="location">${escapeHtml(encounter.location)}</span></div><h2>${escapeHtml(encounter.name)}</h2></div><button class="detail-button" type="button" data-detail="${encounter.id}" aria-label="${escapeHtml(encounter.name)}の詳細">↗</button></header>
+    <header class="card-head"><div><div class="meta"><span class="mechanic ${meta.tone}">${escapeHtml(meta.labelJa || meta.label)}</span><span class="tier-pill">${encounter.tier === 'primary' ? '主要' : '依存'}</span><span class="location">${escapeHtml(encounter.locationJa || encounter.location)}</span></div><h2>${escapeHtml(bossName(encounter))}${encounter.nameJa ? `<small class="english-name">${escapeHtml(encounter.name)}</small>` : ''}</h2></div><button class="detail-button" type="button" data-detail="${encounter.id}" aria-label="${escapeHtml(bossName(encounter))}の詳細">↗</button></header>
     <div class="card-body"><div class="access"><div class="access-copy"><p class="label">ACCESS</p><p class="access-name">${escapeHtml(accessSummary(encounter, index))}</p></div><div class="cost"><small>${accessHint}</small><strong>${accessPrice}</strong></div></div>
     <div class="drop-head"><span class="label">NOTABLE DROPS</span><span class="label">CHANCE</span><span class="label">PRICE</span></div>
-    ${shownDrops.length ? shownDrops.map(drop => `<div class="drop"><div class="drop-name"><strong title="${escapeHtml(drop.itemName)}">${escapeHtml(drop.itemName)}</strong>${trendMarkup(drop.price)}</div><div class="chance">${probabilityMarkup(drop.probability)}</div><div class="price">${formatPrice(drop.price)}</div></div>`).join('') : '<div class="no-drops">表示できるドロップがありません</div>'}
+    ${shownDrops.length ? shownDrops.map(drop => `<div class="drop"><div class="drop-name"><strong title="${escapeHtml(drop.itemName)}">${itemNameMarkup(drop)}</strong>${trendMarkup(drop.price)}</div><div class="chance">${probabilityMarkup(drop.probability, true)}</div><div class="price">${formatPrice(drop.price)}</div></div>`).join('') : '<div class="no-drops">表示できるドロップがありません</div>'}
+    ${premiumMarkup(premiumDrops)}${jackpotMarkup(jackpotDrops)}
     <footer class="card-footer"><span>Drop data · ${escapeHtml(encounter.source.patch)}</span><span>${encounter.source.notes?.match(/n=\d+/)?.[0] || 'sample —'}</span></footer></div></article>`;
 }
 
@@ -107,11 +135,11 @@ function filteredEncounters() {
   const query = normalize(state.query);
   const index = priceIndex();
   const list = encounters.filter(encounter => {
-    const haystack = [encounter.name, encounter.location, ...encounter.aliases, ...encounter.access.items.map(item => item.itemName), ...encounter.drops.map(drop => drop.itemName)].join(' ').toLowerCase();
+    const haystack = [encounter.name, encounter.nameJa, encounter.location, encounter.locationJa, ...encounter.aliases, ...encounter.access.items.flatMap(item => [item.itemName, item.nameJa]), ...encounter.drops.flatMap(drop => [drop.itemName, drop.nameJa])].filter(Boolean).join(' ').toLowerCase();
     return (!query || haystack.includes(query)) && (state.mechanic === 'all' || encounter.mechanic === state.mechanic) && (state.tier === 'all' || encounter.tier === state.tier);
   });
   return list.sort((a, b) => {
-    if (state.sort === 'name') return a.name.localeCompare(b.name);
+    if (state.sort === 'name') return bossName(a).localeCompare(bossName(b), 'ja');
     if (state.sort === 'access') return (accessTotal(b, index)?.value ?? -1) - (accessTotal(a, index)?.value ?? -1);
     return topDropValue(b, index) - topDropValue(a, index);
   });
@@ -131,14 +159,14 @@ function accessRows(encounter, index) {
   if (!items.length) return '<p class="detail-note">市場で価格化できる単一キーはありません。</p>';
   return `<div class="access-list">${items.map(item => {
     const price = item.priceable === false ? null : getPrice(item.itemName, index);
-    return `<div><span>${escapeHtml(item.itemName)} <small>×${item.quantity}${item.optional ? ' · 任意' : ''}</small></span><strong>${formatPrice(price)}</strong></div>`;
+    return `<div><span>${itemNameMarkup(item, { link: true })} <small>×${item.quantity}${item.optional ? ' · 任意' : ''}</small></span><strong>${formatPrice(price)}</strong></div>`;
   }).join('')}</div>`;
 }
 
 function dependencyMarkup(encounter) {
   const ids = encounter.access.prerequisiteEncounterIds || [];
   if (!ids.length) return '';
-  return `<div class="dependency"><span>${ids.map(id => escapeHtml(byId.get(id)?.name || id)).join(' + ')}</span><b>↓</b><span>${escapeHtml(encounter.access.items?.[0]?.itemName || encounter.name)}</span><b>↓</b><strong>${escapeHtml(encounter.name)}</strong></div>`;
+  return `<div class="dependency"><span>${ids.map(id => escapeHtml(byId.get(id) ? bossName(byId.get(id)) : id)).join(' + ')}</span><b>↓</b><span>${escapeHtml(encounter.access.items?.[0] ? itemName(encounter.access.items[0]) : bossName(encounter))}</span><b>↓</b><strong>${escapeHtml(bossName(encounter))}</strong></div>`;
 }
 
 function detailDropRows(encounter, index) {
@@ -146,7 +174,7 @@ function detailDropRows(encounter, index) {
     const price = getPrice(drop.itemName, index);
     const p = drop.probability || { type: 'unknown' };
     const sourceMeta = p.type === 'unknown' ? `不明 · ${p.patch || encounter.source.patch}` : `${p.patch || encounter.source.patch}${p.sampleSize ? ` · n=${p.sampleSize}` : ''}`;
-    return `<tr><td><strong>${escapeHtml(drop.itemName)}</strong><small>${escapeHtml(drop.kind)}${drop.notes ? ` · ${escapeHtml(drop.notes)}` : ''}</small></td><td>${probabilityMarkup(p)}<small>${sourceMeta}</small></td><td class="mono">${formatPrice(price)}</td><td>${trendMarkup(price)}</td></tr>`;
+    return `<tr class="${drop.jackpot ? 'jackpot-detail' : ''}"><td><strong>${itemNameMarkup(drop, { link: true })}</strong><small>${escapeHtml(kindLabels[drop.kind] || drop.kind)}${drop.jackpot ? ' · あたりユニーク' : ''}${drop.notes ? ` · ${escapeHtml(drop.notes)}` : ''}</small>${drop.jackpotNote ? `<small>${escapeHtml(drop.jackpotNote)}</small>` : ''}</td><td>${probabilityMarkup(p, true)}<small>${sourceMeta}</small></td><td class="mono">${formatPrice(price)}</td><td>${trendMarkup(price)}</td></tr>`;
   }).join('');
 }
 
@@ -156,10 +184,10 @@ function openDetail(id) {
   const index = priceIndex();
   const meta = mechanics[encounter.mechanic];
   const total = accessTotal(encounter, index);
-  elements.detail.innerHTML = `<header class="detail-header"><div><div class="meta"><span class="mechanic ${meta.tone}">${escapeHtml(meta.label)}</span><span class="location">${escapeHtml(encounter.location)}</span></div><h2 id="detail-title">${escapeHtml(encounter.name)}</h2>${encounter.aliases.length ? `<p>Aliases · ${encounter.aliases.map(escapeHtml).join(', ')}</p>` : ''}</div><button class="dialog-close" type="button" aria-label="閉じる">×</button></header>
+  elements.detail.innerHTML = `<header class="detail-header"><div><div class="meta"><span class="mechanic ${meta.tone}">${escapeHtml(meta.labelJa || meta.label)}</span><span class="location">${escapeHtml(encounter.locationJa || encounter.location)}</span></div><h2 id="detail-title">${escapeHtml(bossName(encounter))}</h2><p>${escapeHtml(encounter.name)}</p></div><button class="dialog-close" type="button" aria-label="閉じる">×</button></header>
     <div class="detail-body"><section><div class="detail-section-title"><span>ACCESS</span>${total ? `<strong>合計 ${formatPrice(total)}</strong>` : ''}</div>${accessRows(encounter, index)}${dependencyMarkup(encounter)}<p class="detail-note">${escapeHtml(encounter.access.notes || '')}</p></section>
     <section><div class="detail-section-title"><span>DROPS</span><small>市場価格の高い順ではなく定義順</small></div><div class="table-wrap"><table><thead><tr><th>アイテム</th><th>ドロップ確率</th><th>現在価格</th><th>直近推移</th></tr></thead><tbody>${detailDropRows(encounter, index)}</tbody></table></div></section>
-    <section class="source-panel"><div><span>SOURCE / FRESHNESS</span><strong>Drop data · Patch ${escapeHtml(encounter.source.patch)}</strong><p>${escapeHtml(encounter.source.notes || '確率データがない項目は不明として表示しています。')}</p></div><a href="${escapeHtml(encounter.source.url)}" target="_blank" rel="noreferrer">poe2wikiで確認 ↗</a></section></div>`;
+    <section class="source-panel"><div><span>SOURCE / FRESHNESS</span><strong>Drop data · Patch ${escapeHtml(encounter.source.patch)}</strong><p>${escapeHtml(encounter.source.notes || '確率データがない項目は不明として表示しています。')}</p></div><div class="source-links"><a href="${escapeHtml(encounter.poedbUrl || 'https://poe2db.tw/jp/')}" target="_blank" rel="noreferrer">PoE2DB日本語名 ↗</a><a href="${escapeHtml(encounter.source.url)}" target="_blank" rel="noreferrer">ドロップ情報 ↗</a></div></section></div>`;
   elements.detail.querySelector('.dialog-close').addEventListener('click', () => elements.dialog.close());
   elements.dialog.showModal();
 }
@@ -186,7 +214,7 @@ async function loadMarket() {
   render();
 }
 
-for (const [key, meta] of Object.entries(mechanics)) elements.mechanic.insertAdjacentHTML('beforeend', `<option value="${key}">${escapeHtml(meta.label)}</option>`);
+for (const [key, meta] of Object.entries(mechanics)) elements.mechanic.insertAdjacentHTML('beforeend', `<option value="${key}">${escapeHtml(meta.labelJa || meta.label)}</option>`);
 elements.search.addEventListener('input', event => { state.query = event.target.value; render(); });
 elements.mechanic.addEventListener('change', event => { state.mechanic = event.target.value; render(); });
 elements.tier.addEventListener('change', event => { state.tier = event.target.value; render(); });

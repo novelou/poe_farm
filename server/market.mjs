@@ -4,8 +4,9 @@ import { fileURLToPath } from 'node:url';
 
 const API_ROOT = 'https://poe.ninja/poe2/api/economy';
 const CACHE_TTL = 60 * 60 * 1000;
+const MARKET_SCHEMA_VERSION = 2;
 const cacheFile = join(dirname(fileURLToPath(import.meta.url)), '..', '.cache', 'market-snapshot.json');
-const exchangeCategories = ['Fragments', 'Abyss', 'LineageSupportGems', 'Expedition', 'Delirium', 'Breach', 'Ritual', 'Verisium'];
+const exchangeCategories = ['Currency', 'Fragments', 'Abyss', 'LineageSupportGems', 'Expedition', 'Delirium', 'Breach', 'Ritual', 'Verisium'];
 const stashCategories = ['UniqueWeapons', 'UniqueArmours', 'UniqueAccessories', 'UniqueFlasks', 'UniqueJewels', 'UniqueSanctumRelics'];
 const responseCache = new Map();
 let memorySnapshot = null;
@@ -124,14 +125,14 @@ async function refreshMarket() {
     prices.push(...(kind === 'exchange' ? normalizeExchange(data, category) : normalizeStash(data, category)));
   }
   if (!prices.length) throw new Error('All market categories failed');
-  const snapshot = { source: 'live', league, fetchedAt: new Date().toISOString(), items: deduplicatePrices(prices), failedCategories };
+  const snapshot = { schemaVersion: MARKET_SCHEMA_VERSION, source: 'live', league, fetchedAt: new Date().toISOString(), items: deduplicatePrices(prices), failedCategories };
   await saveSnapshot(snapshot);
   return snapshot;
 }
 
 export async function getMarket() {
   const snapshot = await readSnapshot();
-  if (snapshot && Date.now() - new Date(snapshot.fetchedAt).getTime() < CACHE_TTL) return { ...snapshot, source: snapshot.source === 'unavailable' ? 'unavailable' : 'live' };
+  if (snapshot?.schemaVersion === MARKET_SCHEMA_VERSION && Date.now() - new Date(snapshot.fetchedAt).getTime() < CACHE_TTL) return { ...snapshot, source: snapshot.source === 'unavailable' ? 'unavailable' : 'live' };
   if (!refreshPromise) refreshPromise = refreshMarket().finally(() => { refreshPromise = null; });
   try { return await refreshPromise; }
   catch (error) {

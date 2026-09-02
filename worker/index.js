@@ -1,6 +1,7 @@
 const API_ROOT = 'https://poe.ninja/poe2/api/economy';
 const CACHE_TTL = 60 * 60 * 1000;
-const EXCHANGE_CATEGORIES = ['Fragments', 'Abyss', 'LineageSupportGems', 'Expedition', 'Delirium', 'Breach', 'Ritual', 'Verisium'];
+const MARKET_SCHEMA_VERSION = 2;
+const EXCHANGE_CATEGORIES = ['Currency', 'Fragments', 'Abyss', 'LineageSupportGems', 'Expedition', 'Delirium', 'Breach', 'Ritual', 'Verisium'];
 const STASH_CATEGORIES = ['UniqueWeapons', 'UniqueArmours', 'UniqueAccessories', 'UniqueFlasks', 'UniqueJewels', 'UniqueSanctumRelics'];
 const REQUEST_HEADERS = { Accept: 'application/json', 'User-Agent': 'PoE2BossMarket/0.1 (boss access and drop viewer)' };
 let memorySnapshot;
@@ -86,14 +87,14 @@ async function refreshMarket(env) {
     prices.push(...(kind === 'exchange' ? normalizeExchange(data, category) : normalizeStash(data, category)));
   }
   if (!prices.length) throw new Error('All market categories failed');
-  return { source: 'live', league, fetchedAt: new Date().toISOString(), items: deduplicatePrices(prices), failedCategories };
+  return { schemaVersion: MARKET_SCHEMA_VERSION, source: 'live', league, fetchedAt: new Date().toISOString(), items: deduplicatePrices(prices), failedCategories };
 }
 
 async function getMarket(env) {
-  const fresh = snapshot => snapshot && Date.now() - new Date(snapshot.fetchedAt).getTime() < CACHE_TTL;
+  const fresh = snapshot => snapshot?.schemaVersion === MARKET_SCHEMA_VERSION && Date.now() - new Date(snapshot.fetchedAt).getTime() < CACHE_TTL;
   if (fresh(memorySnapshot)) return memorySnapshot;
   const cache = caches.default;
-  const cacheKey = new Request('https://poe2-boss-market.internal/market');
+  const cacheKey = new Request(`https://poe2-boss-market.internal/market-v${MARKET_SCHEMA_VERSION}`);
   const cachedResponse = await cache.match(cacheKey);
   const cached = cachedResponse ? await cachedResponse.json() : undefined;
   if (fresh(cached)) { memorySnapshot = cached; return cached; }
